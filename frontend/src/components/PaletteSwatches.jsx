@@ -3,35 +3,31 @@ import { motion } from "framer-motion";
 import { readableTextColor } from "../utils/color.js";
 
 export default function PaletteSwatches({ swatches }) {
-  // `active` reveals the hex label immediately on tap/click — this is what
-  // makes the hex readable on touch devices, which have no hover state to
-  // fall back on. `copied` tracks the clipboard write separately so a slow
-  // or failed copy never delays showing the hex itself.
+  // Reveals the hex label on tap/click — this is what makes the hex
+  // readable on touch devices, which have no hover state to fall back on.
   const [active, setActive] = useState(null);
-  const [copied, setCopied] = useState(null);
-  const timers = useRef({});
+  const timer = useRef(null);
 
-  useEffect(() => {
-    return () => {
-      clearTimeout(timers.current.active);
-      clearTimeout(timers.current.copied);
-    };
-  }, []);
+  useEffect(() => () => clearTimeout(timer.current), []);
 
-  async function handleActivate(hex) {
-    setActive(hex);
-    clearTimeout(timers.current.active);
-    timers.current.active = setTimeout(() => setActive((a) => (a === hex ? null : a)), 1600);
+  function handleActivate(hex) {
+    clearTimeout(timer.current);
 
-    try {
-      await navigator.clipboard.writeText(hex);
-      setCopied(hex);
-      clearTimeout(timers.current.copied);
-      timers.current.copied = setTimeout(() => setCopied((c) => (c === hex ? null : c)), 1600);
-    } catch {
-      // Clipboard API can be unavailable (e.g. insecure context) — the hex
-      // label still shows either way, just without the copy confirmation.
+    // Tapping an already-revealed swatch hides it right away — the same
+    // gesture that shows it dismisses it, instead of only fading out on
+    // its own after the timeout below.
+    if (active === hex) {
+      setActive(null);
+      return;
     }
+
+    setActive(hex);
+    timer.current = setTimeout(() => setActive((a) => (a === hex ? null : a)), 1600);
+
+    navigator.clipboard?.writeText(hex).catch(() => {
+      // Clipboard API can be unavailable (e.g. insecure context); the hex
+      // label still shows either way, just without the copy.
+    });
   }
 
   return (
@@ -58,12 +54,11 @@ export default function PaletteSwatches({ swatches }) {
             title={`Tap to copy ${s.hex}`}
           >
             <span
-              className={`text-[11px] font-medium transition-opacity ${
+              className={`text-center text-[11px] font-medium transition-opacity ${
                 revealed ? "opacity-100" : "opacity-0 group-hover:opacity-100"
               }`}
             >
               {s.hex}
-              {copied === s.hex ? " ✓" : ""}
             </span>
           </motion.button>
         );
